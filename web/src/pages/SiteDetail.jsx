@@ -79,7 +79,17 @@ export default function SiteDetail() {
       }
       const data = await res.json()
       if (data.success && data.data) {
-        setTokens(data.data.items || data.data || [])
+        // 严格的数组类型检查，确保传给Table的一定是数组
+        let tokenList = []
+        if (Array.isArray(data.data)) {
+          tokenList = data.data
+        } else if (data.data.items && Array.isArray(data.data.items)) {
+          tokenList = data.data.items
+        } else if (data.data.data && Array.isArray(data.data.data)) {
+          tokenList = data.data.data
+        }
+        console.log('令牌列表加载成功:', tokenList)
+        setTokens(tokenList)
       } else {
         throw new Error(data.message || '获取令牌列表失败')
       }
@@ -110,14 +120,17 @@ export default function SiteDetail() {
         }))
         setGroups(groupList)
         console.log('分组列表加载成功:', groupList)
+        return groupList  // 返回分组列表
       } else {
         console.warn('获取分组列表响应格式不正确:', data)
         setGroups([])
+        return []
       }
     } catch (e) {
       console.error('获取分组列表失败:', e)
       message.error('获取分组列表失败: ' + e.message)
       setGroups([])
+      return []
     }
   }
   
@@ -200,8 +213,7 @@ export default function SiteDetail() {
     // 如果分组列表为空，先加载分组列表
     let currentGroups = groups
     if (currentGroups.length === 0) {
-      await loadGroups()
-      currentGroups = groups
+      currentGroups = await loadGroups()  // 使用返回值
     }
     
     // 如果当前令牌的分组为空（用户分组），且不在选项列表中，临时添加一个只读选项用于显示
@@ -1018,13 +1030,13 @@ export default function SiteDetail() {
           </Form.Item>
 
           <Form.Item
-            label="访问限制"
+            label="IP白名单"
             name="allowIps"
-            extra="多个IP请用逗号分隔，留空表示不限制"
+            extra="一行一个IP地址，不填则不限制"
           >
             <Input.TextArea
-              placeholder="例如: 192.168.1.1, 10.0.0.1"
-              rows={3}
+              placeholder="例如：&#10;192.168.1.1&#10;10.0.0.1&#10;172.16.0.0/12"
+              rows={4}
             />
           </Form.Item>
 

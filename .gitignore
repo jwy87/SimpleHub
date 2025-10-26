@@ -55,3 +55,4 @@ coverage/
 .DS_Store
 Thumbs.db
 *.bak
+muban.yaml
