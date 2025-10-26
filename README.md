@@ -21,7 +21,7 @@
 - **余额监控**：实时显示账户余额、使用量和剩余额度，支持自定义额度配置
 - **请求详情**：完整记录 API 响应、错误信息和性能数据，便于问题排查
 
-### ✅ 自动签到（Veloera 专属）
+### ✅ 自动签到
 - **智能签到**：支持 Veloera 平台自动签到，每日自动领取奖励
 - **灵活模式**：可选择仅签到、仅检测或两者都执行
 - **状态追踪**：实时显示签到结果和获得的额度
@@ -74,7 +74,7 @@ docker run -d \
   --name api-monitor \
   -p 3000:3000 \
   -v api-monitor-data:/app/data \
-  ghcr.io/jwy87/get_models:latest
+  ghcr.io/jwy87/SimpleHub:latest
 ```
 
 **2. 自定义管理员账号（推荐）**
@@ -86,7 +86,7 @@ docker run -d \
   -e ADMIN_EMAIL=your-email@example.com \
   -e ADMIN_PASSWORD=your-secure-password \
   -v api-monitor-data:/app/data \
-  ghcr.io/jwy87/get_models:latest
+  ghcr.io/jwy87/SimpleHub:latest
 ```
 
 **3. 访问应用**
@@ -111,7 +111,7 @@ version: '3.8'
 
 services:
   api-monitor:
-    image: ghcr.io/jwy87/get_models:latest
+    image: ghcr.io/jwy87/SimpleHub:latest
     container_name: api-monitor
     ports:
       - "3000:3000"
@@ -156,9 +156,9 @@ docker-compose up -d
    - **定时检测**：设置每日自动检测时间
    - **分类**：将站点归类到指定分类
    - **签到配置**：Veloera 类型可启用自动签到
-   - **自定义 Billing**：配置自定义余额查询接口
+   - **自定义余额**：配置自定义余额查询接口
 
-### 签到功能（Veloera 专属）
+### 签到功能
 
 1. 编辑 Veloera 类型的站点
 2. 启用「自动签到」开关
@@ -367,7 +367,7 @@ docker run -d \
   -e ADMIN_EMAIL=new-email@example.com \
   -e ADMIN_PASSWORD=new-password \
   -v api-monitor-data:/app/data \
-  ghcr.io/jwy87/get_models:latest
+  ghcr.io/jwy87/SimpleHub:latest
 ```
 
 **建议**：部署前请妥善保管管理员账号密码
@@ -426,7 +426,7 @@ cd web && npm run dev
 ## 📁 项目结构
 
 ```
-get_models/
+SimpleHub/
 ├── server/                 # 后端服务
 │   ├── src/
 │   │   ├── server.js      # Fastify 服务器
@@ -458,7 +458,7 @@ get_models/
 
 ## 🔧 高级功能
 
-### 自定义 Billing 配置（不好用）
+### 自定义余额配置（不好用）
 
 对于「其他（OpenAI 标准）」类型的站点：
 
@@ -510,8 +510,8 @@ MIT License
 ## 💬 支持
 
 如有问题或建议，欢迎：
-- 提交 [Issue](https://github.com/jwy87/get_models/issues)
-- 发起 [Discussion](https://github.com/jwy87/get_models/discussions)
+- 提交 [Issue](https://github.com/jwy87/SimpleHub/issues)
+- 发起 [Discussion](https://github.com/jwy87/SimpleHub/discussions)
 
 <div align="center">
   <sub>⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！</sub>
