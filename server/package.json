@@ -1,0 +1,27 @@
+{
+  "name": "ai-relay-model-monitor-server",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "dev": "node src/server.js",
+    "db:push": "prisma db push",
+    "prisma:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^7.0.1",
+    "@fastify/static": "^7.0.1",
+    "@prisma/client": "^6.17.1",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.2.3",
+    "fastify": "^4.27.2",
+    "node-cron": "^3.0.3",
+    "resend": "^3.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.17.1"
+  }
+}

@@ -1,0 +1,50 @@
+# Dependencies
+**/node_modules
+**/npm-debug.log
+**/package-lock.json
+**/yarn.lock
+
+# Build outputs
+**/dist
+**/build
+web/dist
+
+# Test and development
+**/.env
+**/.env.*
+.env.local
+.env.development
+
+# Database and data
+**/data
+server/data
+server/prisma/data
+**/*.db
+**/*.sqlite
+**/*.db-journal
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE and OS
+**/.DS_Store
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo
+**/Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+docs/
+
+# Logs
+**/logs
+**/*.log

@@ -1,0 +1,57 @@
+# Dependencies
+**/node_modules/
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Build outputs
+**/dist/
+**/build/
+web/dist/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.env.local
+.env.development
+GENERATED_KEYS.txt
+
+# Database and data
+**/data/
+server/data/
+server/prisma/data/
+**/*.db
+**/*.sqlite
+**/*.db-journal
+
+# Logs
+**/logs/
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
