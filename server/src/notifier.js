@@ -234,8 +234,8 @@ async function sendAggregatedNotification(siteChanges, fastify, failedSites = []
     let totalAdded = 0;
     let totalRemoved = 0;
     siteChanges.forEach(sc => {
-      totalAdded += sc.diff.added?.length || 0;
-      totalRemoved += sc.diff.removed?.length || 0;
+      totalAdded += sc.diff?.added?.length || 0;
+      totalRemoved += sc.diff?.removed?.length || 0;
     });
 
     debugLog('📊 聚合统计:', {
@@ -249,8 +249,8 @@ async function sendAggregatedNotification(siteChanges, fastify, failedSites = []
     let htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; background: #f5f5f5; padding: 20px;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-          <h1 style="color: white; margin: 0; font-size: 28px;">🔔 AI 模型变化通知</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">定时检测报告</p>
+          <h1 style="color: white; margin: 0; font-size: 28px;">🔔 站点检测通知</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">模型监测 & 签到报告</p>
         </div>
         
         <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
@@ -259,7 +259,7 @@ async function sendAggregatedNotification(siteChanges, fastify, failedSites = []
               <strong>📅 检测时间：</strong>${new Date().toLocaleString('zh-CN')}
             </p>
             <p style="margin: 8px 0 0 0; color: #0050b3; font-size: 15px;">
-              <strong>🎯 变更站点：</strong>${siteChanges.length} 个
+              <strong>🎯 检测站点：</strong>${siteChanges.length} 个
             </p>
             ${failedSites.length > 0 ? `
             <p style="margin: 8px 0 0 0; color: #cf1322; font-size: 15px;">
@@ -283,34 +283,70 @@ async function sendAggregatedNotification(siteChanges, fastify, failedSites = []
     // 为每个站点添加变更详情
     siteChanges.forEach((siteChange, index) => {
       const { siteName, diff, checkInResult } = siteChange;
-      const siteTotal = (diff.added?.length || 0) + (diff.removed?.length || 0); // 只统计新增和删除
+      
+      // 统计变更项
+      const modelChanges = (diff?.added?.length || 0) + (diff?.removed?.length || 0);
+      const hasCheckIn = !!checkInResult;
+      const hasModelChange = modelChanges > 0;
+      
+      // 生成标签文本
+      let labelText = '';
+      if (hasCheckIn && hasModelChange) {
+        labelText = '签到 + 模型变更';
+      } else if (hasCheckIn) {
+        labelText = `签到${checkInResult.checkInSuccess ? '成功' : '失败'}`;
+      } else if (hasModelChange) {
+        labelText = modelChanges + ' 项模型变更';
+      }
       
       htmlContent += `
         <details style="margin-bottom: 20px; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden;" ${index === 0 ? 'open' : ''}>
           <summary style="background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); padding: 15px 20px; cursor: pointer; font-size: 16px; font-weight: 600; color: #333; user-select: none;">
             🎯 ${siteName}
             <span style="float: right; background: #1890ff; color: white; padding: 2px 12px; border-radius: 12px; font-size: 13px; font-weight: normal;">
-              ${siteTotal} 项变更
+              ${labelText}
             </span>
           </summary>
           <div style="padding: 20px; background: #fafafa;">
       `;
       
-      // 添加签到结果（如果有）
+      // 添加签到结果（如果有）- 放在最前面
       if (checkInResult) {
-        const { checkInSuccess, checkInMessage, checkInQuota } = checkInResult;
+        const { checkInSuccess, checkInMessage, checkInQuota, checkInError } = checkInResult;
         const statusIcon = checkInSuccess ? '✅' : '❌';
         const statusColor = checkInSuccess ? '#52c41a' : '#ff4d4f';
+        const statusBg = checkInSuccess ? '#f6ffed' : '#fff2f0';
+        const statusBorder = checkInSuccess ? '#b7eb8f' : '#ffccc7';
+        
         htmlContent += `
-          <div style="background: ${checkInSuccess ? '#f6ffed' : '#fff2f0'}; border: 1px solid ${checkInSuccess ? '#b7eb8f' : '#ffccc7'}; padding: 10px 12px; border-radius: 4px; margin-bottom: 15px;">
-            <div style="font-size: 14px; font-weight: 600; color: ${statusColor}; margin-bottom: 4px;">${statusIcon} 签到: ${checkInMessage || (checkInSuccess ? '成功' : '失败')}</div>
-            ${checkInQuota ? `<div style="font-size: 13px; color: #666;">获得额度: ${checkInQuota}</div>` : ''}
+          <div style="background: ${statusBg}; border-left: 4px solid ${statusColor}; padding: 12px 15px; border-radius: 4px; margin-bottom: ${modelChanges > 0 ? '20px' : '0'};">
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+              <span style="font-size: 20px; flex-shrink: 0;">${statusIcon}</span>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; color: ${statusColor}; font-size: 15px; margin-bottom: 4px;">
+                  签到${checkInSuccess ? '成功' : '失败'}
+                </div>
+                <div style="color: #666; font-size: 13px; margin-bottom: 4px;">
+                  ${checkInMessage || (checkInSuccess ? '签到成功' : '签到失败')}
+                </div>
+                ${checkInQuota ? `
+                <div style="color: #52c41a; font-size: 13px; font-weight: 600;">
+                  💰 获得额度: ${checkInQuota}
+                </div>
+                ` : ''}
+                ${checkInError ? `
+                <div style="color: #8c8c8c; font-size: 12px; font-family: monospace; background: white; padding: 6px 8px; border-radius: 4px; margin-top: 6px; word-break: break-all;">
+                  ${checkInError}
+                </div>
+                ` : ''}
+              </div>
+            </div>
           </div>
         `;
       }
       
-      // 新增模型
-      if (diff.added && diff.added.length > 0) {
+      // 新增模型（只在有变更时显示）
+      if (diff && diff.added && diff.added.length > 0) {
         htmlContent += `
           <div style="margin-bottom: 20px;">
             <h3 style="color: #52c41a; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 8px;">
@@ -328,8 +364,8 @@ async function sendAggregatedNotification(siteChanges, fastify, failedSites = []
         htmlContent += `</div></div>`;
       }
       
-      // 移除模型
-      if (diff.removed && diff.removed.length > 0) {
+      // 移除模型（只在有变更时显示）
+      if (diff && diff.removed && diff.removed.length > 0) {
         htmlContent += `
           <div style="margin-bottom: 20px;">
             <h3 style="color: #ff4d4f; margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 8px;">

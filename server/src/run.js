@@ -889,6 +889,52 @@ async function checkSite(site, fastify, options = {}) {
   const now = new Date();
   let diff = { added: [], removed: [], changed: [] };
   let hasChanges = false;
+  let checkInChanged = false;
+  
+  // 检测签到状态是否发生变化
+  console.log(`[CHECK-IN] ========== 签到状态检测 ==========`);
+  console.log(`[CHECK-IN] needCheckIn=${needCheckIn}`);
+  
+  if (needCheckIn) {
+    console.log(`[CHECK-IN] 开始检测签到状态变化...`);
+    console.log(`[CHECK-IN] 当前签到结果: success=${checkInSuccess}, message=${checkInMessage}, error=${checkInError}`);
+    
+    if (!lastSnap) {
+      // 首次检测：如果有签到结果，标记为变更
+      console.log(`[CHECK-IN] 首次检测，无历史快照`);
+      if (checkInSuccess !== null) {
+        checkInChanged = true;
+        console.log(`[CHECK-IN] ✅ 首次签到标记为变更: ${checkInSuccess ? '成功' : '失败'}`);
+      }
+    } else {
+      // 非首次检测：对比上次快照
+      const lastCheckInSuccess = lastSnap.checkInSuccess;
+      const lastCheckInError = lastSnap.checkInError;
+      
+      console.log(`[CHECK-IN] 上次签到结果: success=${lastCheckInSuccess}, error=${lastCheckInError}`);
+      
+      // 签到状态发生变化的情况：
+      // 1. 从无记录到有记录
+      // 2. 从成功变为失败，或从失败变为成功
+      // 3. 错误信息发生变化
+      if (lastCheckInSuccess === null && checkInSuccess !== null) {
+        checkInChanged = true;
+        console.log(`[CHECK-IN] ✅ 签到状态变化: 无记录 -> ${checkInSuccess ? '成功' : '失败'}`);
+      } else if (lastCheckInSuccess !== null && checkInSuccess !== null && lastCheckInSuccess !== checkInSuccess) {
+        checkInChanged = true;
+        console.log(`[CHECK-IN] ✅ 签到状态变化: ${lastCheckInSuccess ? '成功' : '失败'} -> ${checkInSuccess ? '成功' : '失败'}`);
+      } else if (checkInSuccess === false && lastCheckInError !== checkInError) {
+        checkInChanged = true;
+        console.log(`[CHECK-IN] ✅ 签到错误信息变化: "${lastCheckInError}" -> "${checkInError}"`);
+      } else {
+        console.log(`[CHECK-IN] ⭕ 签到状态无变化`);
+      }
+    }
+    
+    console.log(`[CHECK-IN] 检测结果: checkInChanged=${checkInChanged}`);
+  } else {
+    console.log(`[CHECK-IN] 跳过签到变更检测 (needCheckIn=${needCheckIn})`);
+  }
   
   // 每次检测都创建快照（不管是否有变更），这样"请求详情"能显示最新结果
   const snap = await prisma.modelSnapshot.create({
@@ -959,12 +1005,28 @@ async function checkSite(site, fastify, options = {}) {
   await prisma.site.update({ where: { id: site.id }, data: { lastCheckedAt: now } });
   
   // 返回变更信息供聚合使用（包含签到结果）
+  // 只要执行了签到，就返回签到结果（用于邮件通知）
+  const hasCheckInResult = needCheckIn && checkInSuccess !== null;
+  
+  console.log(`\n[CHECK] ========== 检测结果汇总 ==========`);
+  console.log(`[CHECK] 站点: ${site.name}`);
+  console.log(`[CHECK] 模型变更: ${hasChanges}`);
+  console.log(`[CHECK] 执行签到: ${needCheckIn}`);
+  console.log(`[CHECK] 有签到结果: ${hasCheckInResult}`);
+  if (hasCheckInResult) {
+    console.log(`[CHECK] 签到状态: ${checkInSuccess ? '成功' : '失败'}`);
+    console.log(`[CHECK] 签到消息: ${checkInMessage}`);
+  }
+  console.log(`[CHECK] 将发送通知: ${hasChanges || hasCheckInResult ? '是' : '否'}`);
+  console.log(`[CHECK] ======================================\n`);
+  
   return { 
     ok: true, 
     hasChanges,
     diff: hasChanges ? diff : null,
     siteName: site.name,
-    checkInResult: needCheckIn ? { checkInSuccess, checkInMessage, checkInQuota, checkInError } : null
+    checkInChanged, // 保留用于日志
+    checkInResult: hasCheckInResult ? { checkInSuccess, checkInMessage, checkInQuota, checkInError } : null
   };
 }
 
