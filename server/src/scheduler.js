@@ -32,9 +32,15 @@ async function scheduleSite(site, fastify) {
   const cronExp = site.scheduleCron;
   const job = cron.schedule(cronExp, async () => {
     try {
+      // 重新从数据库获取最新的站点信息，避免使用过期的配置
+      const latestSite = await prisma.site.findUnique({ where: { id: site.id } });
+      if (!latestSite) {
+        fastify?.log?.warn({ siteId: site.id }, 'Site not found, skipping scheduled check');
+        return;
+      }
       // 有单独配置的站点，不跳过通知，单独发送邮件
-      await checkSite(site, fastify, { skipNotification: false });
-      fastify?.log?.info({ siteId: site.id, name: site.name }, 'Individual scheduled check done');
+      await checkSite(latestSite, fastify, { skipNotification: false, isManual: false });
+      fastify?.log?.info({ siteId: latestSite.id, name: latestSite.name }, 'Individual scheduled check done');
     } catch (e) {
       fastify?.log?.warn({ siteId: site.id, name: site.name, err: e.message }, 'Individual scheduled check failed');
     }
@@ -137,7 +143,7 @@ async function scheduleGlobalTask(config, fastify) {
           fastify?.log?.info({ siteId: site.id, name: site.name }, `Checking site ${i + 1}/${sites.length}`);
           
           // 使用 skipNotification 参数跳过单站点邮件通知
-          const result = await checkSite(site, fastify, { skipNotification: true });
+          const result = await checkSite(site, fastify, { skipNotification: true, isManual: false });
           
           // 如果有变更，收集起来
           if (result.hasChanges && result.diff) {

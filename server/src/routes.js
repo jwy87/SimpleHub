@@ -53,12 +53,12 @@ async function routes(fastify) {
       const { apiKeyEnc, ...rest } = site;
       return {
         ...rest,
-        billingLimit: latestSnapshot?.billingLimit || null,
-        billingUsage: latestSnapshot?.billingUsage || null,
-        billingError: latestSnapshot?.billingError || null,
-        checkInSuccess: latestSnapshot?.checkInSuccess || null,
-        checkInMessage: latestSnapshot?.checkInMessage || null,
-        checkInError: latestSnapshot?.checkInError || null,
+        billingLimit: latestSnapshot?.billingLimit ?? null,
+        billingUsage: latestSnapshot?.billingUsage ?? null,
+        billingError: latestSnapshot?.billingError ?? null,
+        checkInSuccess: latestSnapshot?.checkInSuccess ?? null,
+        checkInMessage: latestSnapshot?.checkInMessage ?? null,
+        checkInError: latestSnapshot?.checkInError ?? null,
         _modelsJson: latestSnapshot?.modelsJson || '[]' // 用于搜索
       };
     }));

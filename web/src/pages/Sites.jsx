@@ -631,6 +631,41 @@ export default function Sites() {
     }
   }
 
+  const deleteUncategorizedSites = async () => {
+    try {
+      const uncategorizedSites = list.filter(s => !s.categoryId && !s.pinned)
+      
+      if (uncategorizedSites.length === 0) {
+        message.info('没有未分类站点可删除')
+        return
+      }
+
+      // 批量删除所有未分类站点
+      const deletePromises = uncategorizedSites.map(site => 
+        fetch(`/api/sites/${site.id}`, {
+          method: 'DELETE',
+          headers: authHeaders()
+        })
+      )
+
+      const results = await Promise.allSettled(deletePromises)
+      
+      // 统计成功和失败的数量
+      const successCount = results.filter(r => r.status === 'fulfilled').length
+      const failCount = results.length - successCount
+
+      await load()
+      
+      if (failCount === 0) {
+        message.success(`已成功删除 ${successCount} 个未分类站点`)
+      } else {
+        message.warning(`删除完成：成功 ${successCount} 个，失败 ${failCount} 个`)
+      }
+    } catch (e) {
+      message.error(e.message || '批量删除失败')
+    }
+  }
+
   const handleModalOk = () => {
     if (editMode) {
       onEdit()
@@ -1681,6 +1716,62 @@ export default function Sites() {
                   >
                     一键检测
                   </Button>
+                  <Popconfirm
+                    title={<span style={{ color: '#ff4d4f', fontWeight: 600, fontSize: 16 }}>⚠️ 危险操作：删除所有未分类站点</span>}
+                    description={
+                      <div style={{ maxWidth: 350 }}>
+                        <p style={{ marginBottom: 12 }}>
+                          你即将删除 <strong style={{ color: '#ff4d4f', fontSize: 16 }}>{list.filter(s => !s.categoryId && !s.pinned).length} 个</strong> 未分类站点
+                        </p>
+                        <div style={{ 
+                          background: '#fff1f0', 
+                          border: '1px solid #ffccc7', 
+                          borderRadius: 6,
+                          padding: 12,
+                          marginBottom: 12
+                        }}>
+                          <p style={{ color: '#cf1322', fontWeight: 600, margin: 0, marginBottom: 8 }}>
+                            🚨 重要提示：
+                          </p>
+                          <ul style={{ margin: 0, paddingLeft: 20, color: '#cf1322' }}>
+                            <li>这将<strong>永久删除</strong>所有未分类站点</li>
+                            <li>包括站点的<strong>所有历史检测数据</strong></li>
+                            <li><strong>此操作不可恢复！</strong></li>
+                          </ul>
+                        </div>
+                        <p style={{ 
+                          color: '#8c8c8c', 
+                          fontSize: 12,
+                          margin: 0,
+                          padding: 8,
+                          background: '#f5f5f5',
+                          borderRadius: 4
+                        }}>
+                          💡 注意：其他分类的"删除"是删除分类本身，站点会归入未分类。而这里是直接删除站点！
+                        </p>
+                      </div>
+                    }
+                    onConfirm={deleteUncategorizedSites}
+                    okText="确认删除所有站点"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                    icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ 
+                        background: 'rgba(255, 77, 79, 0.8)',
+                        color: 'white', 
+                        borderColor: 'rgba(255, 255, 255, 0.6)',
+                        fontWeight: 600
+                      }}
+                    >
+                      删除
+                    </Button>
+                  </Popconfirm>
                 </Space>
               </div>
               {!collapsedGroups.has('uncategorized') && (

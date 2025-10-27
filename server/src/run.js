@@ -853,7 +853,14 @@ async function checkSite(site, fastify, options = {}) {
         rawResponse: e.rawResponse,
         errorMessage: e.errorMessage || e.error?.message || String(e),
         statusCode: e.statusCode,
-        responseTime: e.responseTime
+        responseTime: e.responseTime,
+        billingLimit: null,
+        billingUsage: null,
+        billingError: null,
+        checkInSuccess,
+        checkInMessage,
+        checkInQuota,
+        checkInError
       }
     });
     await prisma.site.update({ 
