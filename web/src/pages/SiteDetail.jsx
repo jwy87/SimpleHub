@@ -32,8 +32,8 @@ export default function SiteDetail() {
   const [snapshot, setSnapshot] = useState([])
   const [loading, setLoading] = useState(false)
   const [modelsExpanded, setModelsExpanded] = useState(true)
+  const [siteInfo, setSiteInfo] = useState(null)
   
-  // 令牌管理相关状态
   const [tokenModalVisible, setTokenModalVisible] = useState(false)
   const [tokens, setTokens] = useState([])
   const [tokenLoading, setTokenLoading] = useState(false)
@@ -42,11 +42,14 @@ export default function SiteDetail() {
   const [groups, setGroups] = useState([])
   const [form] = Form.useForm()
   
-  // 兑换码相关状态
   const [redeemModalVisible, setRedeemModalVisible] = useState(false)
   const [redeemCodes, setRedeemCodes] = useState('')
   const [redeemLoading, setRedeemLoading] = useState(false)
   const [redeemResults, setRedeemResults] = useState([])
+
+  const [pricingData, setPricingData] = useState(null)
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [availableGroups, setAvailableGroups] = useState([])
 
   const copyToClipboard = useCallback((text, successMsg = '复制成功') => {
     navigator.clipboard.writeText(text).then(() => {
@@ -64,6 +67,43 @@ export default function SiteDetail() {
     const names = models.map(m => m.id).join(',')
     copyToClipboard(names, `已复制 ${models.length} 个模型名称`)
   }, [copyToClipboard])
+
+  const getModelPricing = useCallback((modelId) => {
+    if (!pricingData) return null
+    if (pricingData.notSupported) {
+      return { available: true, type: 'not_supported' }
+    }
+    if (!pricingData.data) return null
+    const modelInfo = pricingData.data.find(m => m.model_name === modelId)
+    if (!modelInfo) return null
+    
+    const groupRatio = (pricingData.group_ratio && pricingData.group_ratio[selectedGroup]) || 1
+    const isAvailable = modelInfo.enable_groups && modelInfo.enable_groups.includes(selectedGroup)
+    
+    if (!isAvailable) {
+      return { available: false }
+    }
+
+    if (modelInfo.quota_type === 1 && modelInfo.model_price) {
+      const price = modelInfo.model_price * groupRatio
+      return {
+        available: true,
+        type: 'per_call',
+        price: price.toFixed(2)
+      }
+    } else if (modelInfo.quota_type === 0 && modelInfo.model_ratio) {
+      const inputPrice = 2 * modelInfo.model_ratio * groupRatio
+      const outputPrice = inputPrice * (modelInfo.completion_ratio || 1)
+      return {
+        available: true,
+        type: 'per_token',
+        inputPrice: inputPrice.toFixed(2),
+        outputPrice: outputPrice.toFixed(2)
+      }
+    }
+    
+    return { available: true, type: 'free' }
+  }, [pricingData, selectedGroup])
   
   // 获取令牌列表（通过后端代理）
   const loadTokens = async () => {
@@ -101,8 +141,17 @@ export default function SiteDetail() {
     }
   }
   
-  // 获取分组列表（通过后端代理）
   const loadGroups = async () => {
+    if (pricingData && pricingData.usable_group) {
+      const groupList = Object.keys(pricingData.usable_group).map(key => ({
+        value: key || '__user_group__',
+        label: pricingData.usable_group[key] || '用户分组'
+      }))
+      setGroups(groupList)
+      console.log('从pricing数据加载分组成功:', groupList)
+      return groupList
+    }
+
     try {
       const res = await fetch(`/api/sites/${id}/groups`, { 
         headers: authHeaders() 
@@ -113,14 +162,13 @@ export default function SiteDetail() {
       }
       const data = await res.json()
       if (data.success && data.data) {
-        // 只显示从API获取的分组，不添加"用户分组"
         const groupList = Object.keys(data.data).map(key => ({
           value: key,
           label: data.data[key].name || data.data[key].desc || key
         }))
         setGroups(groupList)
         console.log('分组列表加载成功:', groupList)
-        return groupList  // 返回分组列表
+        return groupList
       } else {
         console.warn('获取分组列表响应格式不正确:', data)
         setGroups([])
@@ -270,7 +318,6 @@ export default function SiteDetail() {
     setEditModalVisible(true)
   }
   
-  // 打开令牌管理弹窗
   const openTokenModal = () => {
     setTokenModalVisible(true)
     loadGroups()
@@ -341,7 +388,143 @@ export default function SiteDetail() {
     }
   }
   
+  const loadSiteInfo = async () => {
+    try {
+      const res = await fetch(`/api/sites/${id}`, { headers: authHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setSiteInfo(data)
+        return data
+      }
+    } catch (e) {
+      console.error('加载站点信息失败:', e)
+    }
+    return null
+  }
+
+  const loadPricing = async (apiType) => {
+    if (apiType !== 'newapi' && apiType !== 'veloera' && apiType !== 'donehub' && apiType !== 'voapi') {
+      console.log('站点类型不支持pricing:', apiType)
+      if (apiType === 'other') {
+        setPricingData({ notSupported: true })
+      }
+      return
+    }
+    console.log('开始加载pricing信息，站点ID:', id, '类型:', apiType)
+    try {
+      const res = await fetch(`/api/sites/${id}/pricing`, { headers: authHeaders() })
+      console.log('pricing请求状态:', res.status, res.statusText)
+      if (res.ok) {
+        const data = await res.json()
+        console.log('收到pricing数据:', data)
+        if (data.code === 0 && apiType === 'voapi' && data.data) {
+          const { models = [], groups = [] } = data.data
+          const allGroups = new Set()
+          const groupMap = {}
+          groups.forEach(g => {
+            allGroups.add(g.id)
+            groupMap[g.id] = {
+              name: g.name || `分组${g.id}`,
+              ratio: g.ratio || 1
+            }
+          })
+          const normalizedModels = models.map(model => {
+            const modelGroups = model.ac || []
+            modelGroups.forEach(gid => allGroups.add(gid))
+            return {
+              model_name: model.idKey,
+              quota_type: model.chargingType === 1 ? 0 : 1,
+              model_price: model.chargingType !== 1 ? parseFloat(model.singlePrice || 0) : null,
+              model_ratio: model.chargingType === 1 ? parseFloat(model.inputPrice || 0) / 2 : null,
+              completion_ratio: model.chargingType === 1 && parseFloat(model.inputPrice || 0) > 0 
+                ? parseFloat(model.outputPrice || 0) / parseFloat(model.inputPrice || 0) 
+                : 1,
+              enable_groups: modelGroups.map(String)
+            }
+          })
+          const usableGroup = {}
+          const groupRatio = {}
+          allGroups.forEach(gid => {
+            const gInfo = groupMap[gid]
+            if (gInfo) {
+              usableGroup[gid] = gInfo.name
+              groupRatio[gid] = gInfo.ratio
+            } else {
+              usableGroup[gid] = `分组${gid}`
+              groupRatio[gid] = 1
+            }
+          })
+          const normalizedData = {
+            success: true,
+            data: normalizedModels,
+            usable_group: usableGroup,
+            group_ratio: groupRatio
+          }
+          setPricingData(normalizedData)
+          const groupList = Array.from(allGroups).map(String)
+          setAvailableGroups(groupList)
+          const defaultGroup = groupList.includes('1') ? '1' : groupList[0]
+          setSelectedGroup(defaultGroup)
+          console.log('VOAPI pricing数据加载成功，已转换为标准格式，可用分组:', groupList)
+        } else if (data.success) {
+          if (apiType === 'donehub' && data.data) {
+            const allGroups = new Set()
+            const normalizedModels = Object.entries(data.data).map(([modelName, info]) => {
+              const groups = info.groups || ['default']
+              groups.forEach(g => allGroups.add(g))
+              return {
+                model_name: modelName,
+                quota_type: info.price.channel_type,
+                model_price: info.price.channel_type === 1 ? info.price.input * 0.001 : null,
+                model_ratio: info.price.channel_type === 0 ? info.price.input : null,
+                completion_ratio: info.price.channel_type === 0 && info.price.output ? info.price.output / info.price.input : 1,
+                enable_groups: groups
+              }
+            })
+            const usableGroup = {}
+            const groupRatio = {}
+            allGroups.forEach(g => {
+              usableGroup[g] = g === 'default' ? '默认分组' : g
+              groupRatio[g] = 1
+            })
+            const normalizedData = {
+              success: true,
+              data: normalizedModels,
+              usable_group: usableGroup,
+              group_ratio: groupRatio
+            }
+            setPricingData(normalizedData)
+            const groupList = Array.from(allGroups)
+            setAvailableGroups(groupList)
+            const defaultGroup = groupList.includes('default') ? 'default' : groupList[0]
+            setSelectedGroup(defaultGroup)
+            console.log('DoneHub pricing数据加载成功，已转换为标准格式，可用分组:', groupList)
+          } else if (data.usable_group) {
+            setPricingData(data)
+            const groupList = Object.keys(data.usable_group || {}).filter(key => key !== '')
+            setAvailableGroups(groupList)
+            if (groupList.length > 0) {
+              const defaultGroup = groupList.includes('default') ? 'default' : groupList[0]
+              setSelectedGroup(defaultGroup)
+              console.log('pricing数据加载成功，可用分组:', groupList, '默认选择:', defaultGroup)
+            } else {
+              console.log('pricing数据加载成功，可用分组:', groupList)
+            }
+          } else {
+            console.warn('pricing数据格式不正确:', data)
+          }
+        }
+      } else {
+        const errorData = await res.json().catch(() => ({}))
+        console.error('加载pricing失败，状态码:', res.status, '错误:', errorData)
+      }
+    } catch (e) {
+      console.error('加载pricing信息失败:', e)
+    }
+  }
+
   const load = async () => {
+    const site = await loadSiteInfo()
     try {
       const res = await fetch(`/api/sites/${id}/diffs?limit=50`, { headers: authHeaders() })
       if (!res.ok) {
@@ -365,6 +548,9 @@ export default function SiteDetail() {
       setSnapshot(items)
     } catch (e) { 
       message.error(e.message || '加载模型列表失败，请稍后重试') 
+    }
+    if (site && site.type) {
+      loadPricing(site.type)
     }
   }
   
@@ -682,6 +868,18 @@ export default function SiteDetail() {
             >
               {modelsExpanded ? '收起' : '展开'}
             </Button>
+            {availableGroups.length > 1 && pricingData && (
+              <Select
+                value={selectedGroup}
+                onChange={setSelectedGroup}
+                size="large"
+                style={{ width: 150 }}
+                options={availableGroups.map(group => ({
+                  value: group,
+                  label: pricingData.usable_group[group] || group
+                }))}
+              />
+            )}
             <Button 
               icon={<CopyOutlined />}
               onClick={() => copyAllModels(snapshot)}
@@ -755,7 +953,7 @@ export default function SiteDetail() {
                 position: 'bottom',
                 style: { marginTop: 16, textAlign: 'center' }
               } : false}
-              renderItem={(m) => <ModelCard key={m.id} model={m} onCopy={copyToClipboard} />}
+              renderItem={(m) => <ModelCard key={m.id} model={m} onCopy={copyToClipboard} pricing={getModelPricing(m.id)} />}
             />
           )
         )}
@@ -1147,8 +1345,7 @@ export default function SiteDetail() {
   )
 }
 
-// 模型卡片组件 - 使用 memo 优化
-const ModelCard = memo(({ model, onCopy }) => (
+const ModelCard = memo(({ model, onCopy, pricing }) => (
   <List.Item>
     <Card 
       size="small"
@@ -1190,11 +1387,42 @@ const ModelCard = memo(({ model, onCopy }) => (
         type="secondary" 
         style={{ 
           fontSize: 12,
-          display: 'block'
+          display: 'block',
+          marginBottom: pricing ? 4 : 0
         }}
       >
         {model.owned_by || model.ownedBy || '未知'}
       </Typography.Text>
+      {pricing && (
+        pricing.available ? (
+          pricing.type === 'per_call' ? (
+            <Tag color="blue" style={{ fontSize: 11, marginTop: 4 }}>
+              按次计费: ${pricing.price}/次
+            </Tag>
+          ) : pricing.type === 'per_token' ? (
+            <div style={{ marginTop: 4 }}>
+              <Tag color="green" style={{ fontSize: 10, marginRight: 4 }}>
+                输入: ${pricing.inputPrice}/M
+              </Tag>
+              <Tag color="orange" style={{ fontSize: 10 }}>
+                输出: ${pricing.outputPrice}/M
+              </Tag>
+            </div>
+          ) : pricing.type === 'not_supported' ? (
+            <Tag color="default" style={{ fontSize: 11, marginTop: 4 }}>
+              暂不支持获取价格
+            </Tag>
+          ) : (
+            <Tag color="cyan" style={{ fontSize: 11, marginTop: 4 }}>
+              免费
+            </Tag>
+          )
+        ) : (
+          <Tag color="default" style={{ fontSize: 11, marginTop: 4 }}>
+            无价格
+          </Tag>
+        )
+      )}
     </Card>
   </List.Item>
 ))

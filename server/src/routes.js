@@ -277,6 +277,8 @@ async function routes(fastify) {
           unlimitedQuota: { type: 'boolean' },
           enableCheckIn: { type: 'boolean' },
           checkInMode: { type: 'string', enum: ['model', 'checkin', 'both'] },
+          extralink: { type: 'string' },
+          remark: { type: 'string' },
         },
       },
     },
@@ -287,7 +289,8 @@ async function routes(fastify) {
       categoryId = null,
       billingUrl = null, billingAuthType = 'token', billingAuthValue = null, 
       billingLimitField = null, billingUsageField = null, unlimitedQuota = false,
-      enableCheckIn = false, checkInMode = 'both'
+      enableCheckIn = false, checkInMode = 'both',
+      extralink = null, remark = null
     } = request.body;
     
     const apiKeyEnc = encrypt(apiKey);
@@ -299,10 +302,11 @@ async function routes(fastify) {
     const site = await prisma.site.create({ 
       data: { 
         name, baseUrl, apiKeyEnc, apiType, userId, scheduleCron, timezone, pinned, excludeFromBatch,
-        categoryId: categoryId || null, // 空字符串转换为 null
+        categoryId: categoryId || null,
         billingUrl, billingAuthType, billingAuthValue: billingAuthValueEnc, 
         billingLimitField, billingUsageField, unlimitedQuota,
-        enableCheckIn, checkInMode
+        enableCheckIn, checkInMode,
+        extralink, remark
       } 
     });
     onSiteUpdated(site, fastify);
@@ -334,6 +338,8 @@ async function routes(fastify) {
           unlimitedQuota: { type: 'boolean' },
           enableCheckIn: { type: 'boolean' },
           checkInMode: { type: 'string', enum: ['model', 'checkin', 'both'] },
+          extralink: { type: 'string' },
+          remark: { type: 'string' },
         },
       },
     },
@@ -344,7 +350,8 @@ async function routes(fastify) {
       name, baseUrl, apiKey, apiType, userId, scheduleCron, timezone, pinned, excludeFromBatch,
       categoryId,
       billingUrl, billingAuthType, billingAuthValue, billingLimitField, billingUsageField, unlimitedQuota,
-      enableCheckIn, checkInMode
+      enableCheckIn, checkInMode,
+      extralink, remark
     } = request.body || {};
     
     try {
@@ -356,7 +363,6 @@ async function routes(fastify) {
       if (timezone) data.timezone = timezone;
       if (pinned !== undefined) data.pinned = pinned;
       if (excludeFromBatch !== undefined) data.excludeFromBatch = excludeFromBatch;
-      // categoryId: 空字符串转换为 null，避免外键约束错误
       if (categoryId !== undefined) data.categoryId = categoryId || null;
       if (billingUrl !== undefined) data.billingUrl = billingUrl;
       if (billingAuthType) data.billingAuthType = billingAuthType;
@@ -367,11 +373,10 @@ async function routes(fastify) {
       if (billingUsageField !== undefined) data.billingUsageField = billingUsageField;
       if (unlimitedQuota !== undefined) data.unlimitedQuota = unlimitedQuota;
       if (enableCheckIn !== undefined) data.enableCheckIn = enableCheckIn;
-      // checkInMode: 只在有值时更新
-      if (checkInMode) {
-        data.checkInMode = checkInMode;
-      }
+      if (checkInMode) data.checkInMode = checkInMode;
       if (apiKey) data.apiKeyEnc = encrypt(apiKey);
+      if (extralink !== undefined) data.extralink = extralink;
+      if (remark !== undefined) data.remark = remark;
       
       fastify.log.info({ updateData: data }, 'Updating site');
       
@@ -413,7 +418,87 @@ async function routes(fastify) {
     }
   });
 
-  // 获取单个站点详情（用于令牌管理等功能）
+  fastify.get('/api/sites/:id/pricing', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { decrypt } = require('./crypto');
+    
+    try {
+      const site = await prisma.site.findUnique({ where: { id } });
+      if (!site) {
+        reply.code(404);
+        return { error: '站点不存在' };
+      }
+
+      if (site.apiType !== 'newapi' && site.apiType !== 'veloera' && site.apiType !== 'donehub' && site.apiType !== 'voapi') {
+        reply.code(400);
+        return { error: '此站点类型不支持pricing接口' };
+      }
+      
+      const baseUrl = site.baseUrl.replace(/\/$/, '');
+      let url, headers, token;
+      
+      if (site.apiType === 'donehub') {
+        token = site.apiKeyEnc ? decrypt(site.apiKeyEnc) : null;
+        if (!token) {
+          reply.code(400);
+          return { error: '站点未配置API令牌' };
+        }
+        url = `${baseUrl}/api/available_model`;
+        headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+      } else if (site.apiType === 'voapi') {
+        token = site.billingAuthValue ? decrypt(site.billingAuthValue) : null;
+        if (!token) {
+          reply.code(400);
+          return { error: '站点未配置JWT令牌' };
+        }
+        url = `${baseUrl}/api/models`;
+        headers = {
+          'Authorization': token,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        };
+      } else {
+        token = site.apiKeyEnc ? decrypt(site.apiKeyEnc) : null;
+        if (!token) {
+          reply.code(400);
+          return { error: '站点未配置API令牌' };
+        }
+        url = `${baseUrl}/api/pricing`;
+        headers = {
+          'Content-Type': 'application/json'
+        };
+        if (site.userId) {
+          const userHeader = site.apiType === 'newapi' ? 'New-Api-User' : 'Veloera-User';
+          headers[userHeader] = site.userId;
+        }
+      }
+      
+      const res = await fetch(url, {
+        method: 'GET',
+        headers
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.message || '获取pricing信息失败');
+      }
+      
+      return data;
+    } catch (e) {
+      fastify.log.error({ error: e.message, siteId: id }, 'Error fetching pricing');
+      reply.code(500);
+      return { error: e.message || '获取pricing信息失败' };
+    }
+  });
+
   fastify.get('/api/sites/:id', {
     schema: {
       params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }
@@ -732,13 +817,11 @@ async function routes(fastify) {
         'Content-Type': 'application/json'
       };
       if (site.userId) {
-        // 不同站点类型使用不同的用户ID请求头
         if (site.apiType === 'newapi') {
           headers['New-Api-User'] = site.userId;
         } else if (site.apiType === 'veloera') {
           headers['Veloera-User'] = site.userId;
         }
-        // 其他类型不需要用户ID请求头
       }
       
       const res = await fetch(url, {
@@ -748,7 +831,6 @@ async function routes(fastify) {
       });
       const data = await res.json();
       
-      // 直接返回站点API的响应
       return data;
     } catch (e) {
       fastify.log.error({ error: e.message, siteId: id, key }, 'Error redeeming code');

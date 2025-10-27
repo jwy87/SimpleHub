@@ -6,12 +6,7 @@ import dayjs from 'dayjs'
 
 // 添加金光闪闪动画样式
 const shimmerStyle = document.createElement('style');
-shimmerStyle.textContent = `
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-`;
+shimmerStyle.textContent = `@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`;
 document.head.appendChild(shimmerStyle);
 
 function authHeaders(includeJson = false) {
@@ -41,7 +36,6 @@ export default function Sites() {
   const [scheduleForm] = Form.useForm()
   const [scheduleConfig, setScheduleConfig] = useState({ enabled: false, hour: 9, minute: 0, interval: 30 })
   const [currentPage, setCurrentPage] = useState(() => {
-    // 从 localStorage 恢复页码
     const saved = localStorage.getItem('sitesCurrentPage')
     return saved ? parseInt(saved, 10) : 1
   })
@@ -53,7 +47,6 @@ export default function Sites() {
   const [hasLastResult, setHasLastResult] = useState(false)
   const [billingConfigExpanded, setBillingConfigExpanded] = useState(false)
   
-  // 搜索和分类相关状态
   const [searchKeyword, setSearchKeyword] = useState('')
   const [categories, setCategories] = useState([])
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
@@ -61,7 +54,6 @@ export default function Sites() {
   const [editingCategory, setEditingCategory] = useState(null)
   const [categoryCheckingId, setCategoryCheckingId] = useState(null)
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
-    // 优先从 sessionStorage 恢复状态
     const saved = sessionStorage.getItem('sitesCollapsedGroups')
     if (saved) {
       try {
@@ -88,7 +80,7 @@ export default function Sites() {
       const data = await res.json()
       setList(data)
     } catch (e) {
-      message.error(e.message || '加载站点列表失败，请检查网络连接')
+      message.error(e.message || '加载站点列表失败')
     } finally { setLoading(false) }
   }
 
@@ -98,7 +90,6 @@ export default function Sites() {
       if (res.ok) {
         const data = await res.json()
         setCategories(data)
-        // 只在没有恢复状态时才设置默认值
         const saved = sessionStorage.getItem('sitesCollapsedGroups')
         if (!saved) {
           setCollapsedGroups(new Set(['pinned', 'uncategorized', ...data.map(c => c.id)]))
@@ -109,7 +100,6 @@ export default function Sites() {
     }
   }
 
-  // 切换分组展开/收起
   const toggleGroupCollapse = (groupId) => {
     const newCollapsed = new Set(collapsedGroups)
     if (newCollapsed.has(groupId)) {
@@ -169,13 +159,11 @@ export default function Sites() {
     initData()
   }, [location])
 
-  // 搜索处理
   const handleSearch = (value) => {
     setSearchKeyword(value)
     load(value)
   }
 
-  // 分类管理函数
   const openCategoryModal = (category = null) => {
     setEditingCategory(category)
     if (category) {
@@ -479,7 +467,6 @@ export default function Sites() {
   const onAdd = async () => {
     try {
       const v = await form.validateFields()
-      // 若设置了北京时间时分，则转换为 cron 并设置时区
       if (v.cnHour !== undefined && v.cnMinute !== undefined && v.cnHour !== null && v.cnMinute !== null) {
         const h = Math.max(0, Math.min(23, Number(v.cnHour)))
         const m = Math.max(0, Math.min(59, Number(v.cnMinute)))
@@ -487,11 +474,7 @@ export default function Sites() {
         v.timezone = 'Asia/Shanghai'
       }
       delete v.cnHour; delete v.cnMinute
-
-      // 设置默认 apiType
       if (!v.apiType) v.apiType = 'other'
-      
-      // 设置签到默认值
       if (v.enableCheckIn && !v.checkInMode) v.checkInMode = 'both'
 
       const res = await fetch('/api/sites', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(v) })
@@ -501,7 +484,7 @@ export default function Sites() {
       }
       setOpen(false); form.resetFields(); await load(); message.success('站点创建成功')
     } catch (e) {
-      message.error(e.message || '创建站点失败，请检查输入信息')
+      message.error(e.message || '创建站点失败')
     }
   }
 
@@ -509,7 +492,6 @@ export default function Sites() {
     setEditMode(true)
     setEditingSite(site)
 
-    // 解析定时计划
     let cnHour = undefined, cnMinute = undefined
     if (site.scheduleCron && site.timezone === 'Asia/Shanghai') {
       const parts = String(site.scheduleCron).trim().split(/\s+/)
@@ -522,7 +504,7 @@ export default function Sites() {
     form.setFieldsValue({
       name: site.name,
       baseUrl: site.baseUrl,
-      apiKey: '', // 不显示原密钥
+      apiKey: '',
       apiType: site.apiType || 'other',
       userId: site.userId || '',
       cnHour,
@@ -533,11 +515,13 @@ export default function Sites() {
       unlimitedQuota: site.unlimitedQuota || false,
       billingUrl: site.billingUrl || '',
       billingAuthType: site.billingAuthType || 'token',
-      billingAuthValue: '', // 不显示原认证值
+      billingAuthValue: '',
       billingLimitField: site.billingLimitField || '',
       billingUsageField: site.billingUsageField || '',
       enableCheckIn: site.enableCheckIn || false,
-      checkInMode: site.checkInMode || 'both'
+      checkInMode: site.checkInMode || 'both',
+      extralink: site.extralink || '',
+      remark: site.remark || ''
     })
     setOpen(true)
   }
@@ -546,7 +530,6 @@ export default function Sites() {
     try {
       const v = await form.validateFields()
 
-      // 构建更新数据
       const updateData = {
         name: v.name,
         baseUrl: v.baseUrl,
@@ -561,29 +544,27 @@ export default function Sites() {
         billingAuthValue: v.billingAuthValue || null,
         billingLimitField: v.billingLimitField || null,
         billingUsageField: v.billingUsageField || null,
-        enableCheckIn: v.enableCheckIn || false
+        enableCheckIn: v.enableCheckIn || false,
+        extralink: v.extralink || null,
+        remark: v.remark || null
       }
       
-      // 只在启用签到时才发送 checkInMode
       if (v.enableCheckIn && v.checkInMode) {
         updateData.checkInMode = v.checkInMode
       } else if (v.enableCheckIn) {
         updateData.checkInMode = 'both'
       }
 
-      // 如果输入了新密钥，则更新
       if (v.apiKey && v.apiKey.trim()) {
         updateData.apiKey = v.apiKey
       }
 
-      // 处理定时计划
       if (v.cnHour !== undefined && v.cnMinute !== undefined && v.cnHour !== null && v.cnMinute !== null) {
         const h = Math.max(0, Math.min(23, Number(v.cnHour)))
         const m = Math.max(0, Math.min(59, Number(v.cnMinute)))
         updateData.scheduleCron = `${m} ${h} * * *`
         updateData.timezone = 'Asia/Shanghai'
       } else {
-        // 清空定时计划
         updateData.scheduleCron = null
         updateData.timezone = 'UTC'
       }
@@ -685,18 +666,15 @@ export default function Sites() {
   const onCheck = async (id) => {
     const hide = message.loading('正在检测中...', 0)
     try {
-      // 手动检测不发送邮件通知
       const res = await fetch(`/api/sites/${id}/check?skipNotification=true`, { method: 'POST', headers: authHeaders() })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || '检测失败')
       hide()
       
-      // 检查是否有模型变更
       if (data.hasChanges && data.diff) {
         const site = list.find(s => s.id === id)
         const siteName = site?.name || '未知站点'
         
-        // 显示模型变更弹窗
         Modal.info({
           title: '🔄 检测到模型变更',
           width: 600,
@@ -939,27 +917,40 @@ export default function Sites() {
       dataIndex: 'name',
       width: 200,
       render: (text, record) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Tooltip title={record.baseUrl} placement="topLeft">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Tooltip title={record.baseUrl} placement="topLeft">
+              <Typography.Link
+                href={record.baseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                strong
+                style={{ fontSize: 15, color: '#40a9ff' }}
+              >
+                {text}
+              </Typography.Link>
+            </Tooltip>
+            {record.pinned && (
+              <Tooltip title="已置顶">
+                <PushpinFilled style={{ color: '#fa8c16', fontSize: 13 }} />
+              </Tooltip>
+            )}
+            {record.excludeFromBatch && (
+              <Tooltip title="不参与一键检测">
+                <span style={{ fontSize: 14, cursor: 'help' }}>🚫</span>
+              </Tooltip>
+            )}
+          </div>
+          {record.extralink && (
             <Typography.Link
-              href={record.baseUrl}
+              href={record.extralink}
               target="_blank"
               rel="noopener noreferrer"
-              strong
-              style={{ fontSize: 15, color: '#40a9ff' }}
+              type="secondary"
+              style={{ fontSize: 11 }}
             >
-              {text}
+              {record.extralink}
             </Typography.Link>
-          </Tooltip>
-          {record.pinned && (
-            <Tooltip title="已置顶">
-              <PushpinFilled style={{ color: '#fa8c16', fontSize: 13 }} />
-            </Tooltip>
-          )}
-          {record.excludeFromBatch && (
-            <Tooltip title="不参与一键检测">
-              <span style={{ fontSize: 14, cursor: 'help' }}>🚫</span>
-            </Tooltip>
           )}
         </div>
       )
@@ -1152,6 +1143,7 @@ export default function Sites() {
       title: <span style={{ fontSize: 15, fontWeight: 600 }}>上次检测</span>,
       dataIndex: 'lastCheckedAt',
       width: 180,
+      align: 'center',
       render: v => v
         ? <Typography.Text type="secondary" style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{new Date(v).toLocaleString('zh-CN')}</Typography.Text>
         : <Typography.Text type="secondary" style={{ fontSize: 13 }}>未检测</Typography.Text>
@@ -1159,85 +1151,100 @@ export default function Sites() {
     {
       title: <span style={{ fontSize: 15, fontWeight: 600 }}>操作</span>,
       key: 'actions',
-      width: 280,
+      width: 240,
+      align: 'center',
       render: (_, r) => (
-        <Space size={4} wrap>
-          <Tooltip title="查看详情">
-            <Button
-              type="primary"
-              className="hover-lift"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                // 保存当前页码、滚动位置和分类展开状态
-                localStorage.setItem('sitesCurrentPage', currentPage)
-                sessionStorage.setItem('sitesScrollPosition', window.scrollY.toString())
-                sessionStorage.setItem('sitesCollapsedGroups', JSON.stringify([...collapsedGroups]))
-                nav(`/sites/${r.id}`)
-              }}
-              size="middle"
-            />
-          </Tooltip>
-          <Tooltip title="立即检测">
-            <Button
-              type="default"
-              className="hover-lift"
-              icon={<ThunderboltOutlined />}
-              onClick={() => onCheck(r.id)}
-              size="middle"
-              style={{ color: '#52c41a', fontWeight: 600, borderColor: '#52c41a' }}
-            />
-          </Tooltip>
-          <Tooltip title="请求详情">
-            <Button
-              type="default"
-              icon={<BugOutlined />}
-              onClick={() => openDebugModal(r)}
-              size="middle"
-              style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
-            />
-          </Tooltip>
-          <Tooltip title="设置时间">
-            <Button
-              type="default"
-              icon={<ClockCircleOutlined />}
-              onClick={() => openTimeModal(r)}
-              size="middle"
-            />
-          </Tooltip>
-          <Tooltip title="编辑">
-            <Button
-              type="default"
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(r)}
-              size="middle"
-              style={{ color: '#1890ff', borderColor: '#1890ff' }}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="删除站点"
-            description={
-              <div style={{ maxWidth: 300 }}>
-                <p>确定要删除站点 <strong>{r.name}</strong> 吗？</p>
-                <p style={{ color: '#ff4d4f', marginTop: 8 }}>
-                  删除后将清除所有历史检测数据，此操作不可恢复！
-                </p>
-              </div>
-            }
-            onConfirm={() => onDelete(r)}
-            okText="确定删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
-          >
-            <Tooltip title="删除">
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, auto)', gap: '2px 2px' }}>
+            <Tooltip title="查看详情">
               <Button
-                danger
-                icon={<DeleteOutlined />}
+                type="primary"
+                className="hover-lift"
+                icon={<EyeOutlined />}
+                onClick={() => {
+                  localStorage.setItem('sitesCurrentPage', currentPage)
+                  sessionStorage.setItem('sitesScrollPosition', window.scrollY.toString())
+                  sessionStorage.setItem('sitesCollapsedGroups', JSON.stringify([...collapsedGroups]))
+                  nav(`/sites/${r.id}`)
+                }}
                 size="middle"
               />
             </Tooltip>
-          </Popconfirm>
-        </Space>
+            <Tooltip title="立即检测">
+              <Button
+                type="default"
+                className="hover-lift"
+                icon={<ThunderboltOutlined />}
+                onClick={() => onCheck(r.id)}
+                size="middle"
+                style={{ color: '#52c41a', fontWeight: 600, borderColor: '#52c41a' }}
+              />
+            </Tooltip>
+            <Tooltip title="请求详情">
+              <Button
+                type="default"
+                icon={<BugOutlined />}
+                onClick={() => openDebugModal(r)}
+                size="middle"
+                style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
+              />
+            </Tooltip>
+            <Tooltip title="设置时间">
+              <Button
+                type="default"
+                icon={<ClockCircleOutlined />}
+                onClick={() => openTimeModal(r)}
+                size="middle"
+              />
+            </Tooltip>
+            <Tooltip title="编辑">
+              <Button
+                type="default"
+                icon={<EditOutlined />}
+                onClick={() => openEditModal(r)}
+                size="middle"
+                style={{ color: '#1890ff', borderColor: '#1890ff' }}
+              />
+            </Tooltip>
+            <Popconfirm
+              title="删除站点"
+              description={
+                <div style={{ maxWidth: 300 }}>
+                  <p>确定要删除站点 <strong>{r.name}</strong> 吗？</p>
+                  <p style={{ color: '#ff4d4f', marginTop: 8 }}>
+                    删除后将清除所有历史检测数据，此操作不可恢复！
+                  </p>
+                </div>
+              }
+              onConfirm={() => onDelete(r)}
+              okText="确定删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+            >
+              <Tooltip title="删除">
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="middle"
+                />
+              </Tooltip>
+            </Popconfirm>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: <span style={{ fontSize: 15, fontWeight: 600 }}>备注</span>,
+      dataIndex: 'remark',
+      width: 220,
+      align: 'center',
+      render: (text) => text ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {text}
+        </Typography.Text>
+      ) : (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>-</Typography.Text>
       )
     }
   ]
@@ -2079,39 +2086,70 @@ export default function Sites() {
                 </Form.Item>
               </Space>
             </Form.Item>
+
             <Form.Item
-              name="pinned"
-              label={<span style={{ fontSize: 15, fontWeight: 500 }}>置顶设置</span>}
-              valuePropName="checked"
-              extra="置顶后，此站点将在列表中优先显示，不参与分类"
+              name="extralink"
+              label={<span style={{ fontSize: 15, fontWeight: 500 }}>附加链接（可选）</span>}
+              extra="显示在站点名称下方的附加签到站链接"
             >
-              <Switch
-                checkedChildren="已置顶"
-                unCheckedChildren="未置顶"
+              <Input
+                placeholder="例如：https://extra.example.com"
+                style={{ borderRadius: 8, fontSize: 15 }}
               />
             </Form.Item>
+
             <Form.Item
-              name="excludeFromBatch"
-              label={<span style={{ fontSize: 15, fontWeight: 500 }}>一键检测选项</span>}
-              valuePropName="checked"
-              extra="勾选后，此站点不会参与“一键检测”，但仍会执行定时检测"
+              name="remark"
+              label={<span style={{ fontSize: 15, fontWeight: 500 }}>备注（可选）</span>}
+              extra="显示在操作列后方的备注信息"
             >
-              <Switch
-                checkedChildren="排除"
-                unCheckedChildren="参与"
+              <Input
+                placeholder="例如：测试站点"
+                style={{ borderRadius: 8, fontSize: 15 }}
               />
             </Form.Item>
-            <Form.Item
-              name="unlimitedQuota"
-              label={<span style={{ fontSize: 15, fontWeight: 500 }}>余额类型</span>}
-              valuePropName="checked"
-              extra="勾选后，此站点将标记为无限余额，不会检测用量信息"
-            >
-              <Switch
-                checkedChildren="无限余额"
-                unCheckedChildren="普通余额"
-              />
-            </Form.Item>
+
+            <div style={{ display: 'flex', gap: 24, marginBottom: 24 }}>
+              <Form.Item
+                name="pinned"
+                valuePropName="checked"
+                style={{ marginBottom: 0, flex: 1 }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>置顶设置</span>
+                  <Switch
+                    checkedChildren="已置顶"
+                    unCheckedChildren="未置顶"
+                  />
+                </div>
+              </Form.Item>
+              <Form.Item
+                name="excludeFromBatch"
+                valuePropName="checked"
+                style={{ marginBottom: 0, flex: 1 }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>一键检测</span>
+                  <Switch
+                    checkedChildren="排除"
+                    unCheckedChildren="参与"
+                  />
+                </div>
+              </Form.Item>
+              <Form.Item
+                name="unlimitedQuota"
+                valuePropName="checked"
+                style={{ marginBottom: 0, flex: 1 }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>余额类型</span>
+                  <Switch
+                    checkedChildren="无限余额"
+                    unCheckedChildren="普通余额"
+                  />
+                </div>
+              </Form.Item>
+            </div>
             
             {/* 签到配置 - 仅Veloera类型显示 */}
             <Form.Item

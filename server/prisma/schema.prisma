@@ -20,22 +20,24 @@ model Site {
   name              String
   baseUrl           String
   apiKeyEnc         String
-  apiType           String           @default("other") // newapi, veloera, donehub, voapi, other
-  userId            String?          // 用户ID，用于Newapi和Veloera
-  billingUrl        String?          // 自定义billing URL（用于"other"类型）
-  billingAuthType   String           @default("token") // token, cookie
-  billingAuthValue  String?          // 鉴权值（加密存储）
-  billingLimitField String?          // 自定义billing限额字段名
-  billingUsageField String?          // 自定义billing使用量字段名
-  unlimitedQuota    Boolean          @default(false) // 标记为无限余额
-  enableCheckIn     Boolean          @default(false) // 是否启用签到（仅Veloera支持）
-  checkInMode       String           @default("both") // 定时检测模式：model(仅模型)、checkin(仅签到)、both(两者都检测)
+  apiType           String           @default("other")
+  userId            String?
+  billingUrl        String?
+  billingAuthType   String           @default("token")
+  billingAuthValue  String?
+  billingLimitField String?
+  billingUsageField String?
+  unlimitedQuota    Boolean          @default(false)
+  enableCheckIn     Boolean          @default(false)
+  checkInMode       String           @default("both")
   scheduleCron      String?
   timezone          String           @default("UTC")
   pinned            Boolean          @default(false)
   excludeFromBatch  Boolean          @default(false)
-  categoryId        String?          // 所属分类ID
+  categoryId        String?
   category          Category?        @relation(fields: [categoryId], references: [id])
+  extralink         String?
+  remark            String?
   lastCheckedAt     DateTime?
   createdAt         DateTime         @default(now())
   snapshots         ModelSnapshot[]
