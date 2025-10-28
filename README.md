@@ -6,8 +6,9 @@
 
 [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/K93Z2G?referralCode=2554906587)
 
-![GitHub license](https://img.shields.io/badge/license-MIT-blue)
-![Node.js](https://img.shields.io/badge/node.js-18%2B-green)
+![GitHub Repo stars](https://img.shields.io/github/stars/jwy87/SimpleHub)
+![GitHub forks](https://img.shields.io/github/forks/jwy87/SimpleHub)
+![GitHub License](https://img.shields.io/github/license/jwy87/SimpleHub)
 
 </div>
 
@@ -509,9 +510,7 @@ MIT License
 
 ## 💬 支持
 
-如有问题或建议，欢迎：
-- 提交 [Issue](https://github.com/jwy87/SimpleHub/issues)
-- 发起 [Discussion](https://github.com/jwy87/SimpleHub/discussions)
+[![Star History Chart](https://api.star-history.com/svg?repos=jwy87/SimpleHub&type=date&legend=top-left)](https://www.star-history.com/#jwy87/SimpleHub&type=date&legend=top-left)
 
 <div align="center">
   <sub>⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！</sub>

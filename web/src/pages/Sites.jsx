@@ -1149,6 +1149,19 @@ export default function Sites() {
         : <Typography.Text type="secondary" style={{ fontSize: 13 }}>未检测</Typography.Text>
     },
     {
+      title: <span style={{ fontSize: 15, fontWeight: 600 }}>备注</span>,
+      dataIndex: 'remark',
+      width: 220,
+      align: 'center',
+      render: (text) => text ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {text}
+        </Typography.Text>
+      ) : (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>-</Typography.Text>
+      )
+    },
+    {
       title: <span style={{ fontSize: 15, fontWeight: 600 }}>操作</span>,
       key: 'actions',
       width: 240,
@@ -1232,19 +1245,6 @@ export default function Sites() {
             </Popconfirm>
           </div>
         </div>
-      )
-    },
-    {
-      title: <span style={{ fontSize: 15, fontWeight: 600 }}>备注</span>,
-      dataIndex: 'remark',
-      width: 220,
-      align: 'center',
-      render: (text) => text ? (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {text}
-        </Typography.Text>
-      ) : (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>-</Typography.Text>
       )
     }
   ]
@@ -2101,7 +2101,7 @@ export default function Sites() {
             <Form.Item
               name="remark"
               label={<span style={{ fontSize: 15, fontWeight: 500 }}>备注（可选）</span>}
-              extra="显示在操作列后方的备注信息"
+              extra="显示在操作列前方的备注信息"
             >
               <Input
                 placeholder="例如：测试站点"

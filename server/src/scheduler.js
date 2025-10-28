@@ -44,9 +44,16 @@ async function scheduleSite(site, fastify) {
     } catch (e) {
       fastify?.log?.warn({ siteId: site.id, name: site.name, err: e.message }, 'Individual scheduled check failed');
     }
-  }, { timezone: site.timezone || 'UTC' });
+  }, { 
+    timezone: site.timezone || 'UTC',
+    scheduled: true  // 确保任务被启动
+  });
+  
+  // 显式启动任务
+  job.start();
+  
   jobs.set(key, job);
-  fastify?.log?.info({ siteId: site.id, name: site.name, cronExp, timezone: site.timezone }, 'Individual schedule task created');
+  fastify?.log?.info({ siteId: site.id, name: site.name, cronExp, timezone: site.timezone }, 'Individual schedule task created and started');
 }
 
 async function scheduleAll(fastify) {
@@ -249,7 +256,15 @@ async function scheduleGlobalTask(config, fastify) {
     } catch (e) {
       fastify?.log?.error({ err: e.message }, 'Global schedule task error');
     }
-  }, { timezone });
+  }, { 
+    timezone,
+    scheduled: true  // 确保任务被启动
+  });
+  
+  // 显式启动全局任务
+  globalScheduleJob.start();
+  
+  fastify?.log?.info({ cronExp, timezone }, 'Global schedule task created and started');
 }
 
 module.exports = { scheduleAll, onSiteUpdated, scheduleGlobalTask };
