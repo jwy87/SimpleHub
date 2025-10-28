@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤖 SimpleHub——API 聚合监控管理系统
+# 🤖 SimpleHub —— API 聚合监控管理系统
 
 <p>统一管理多个 API 站点，支持自动签到、余额监控和智能通知</p>
 
