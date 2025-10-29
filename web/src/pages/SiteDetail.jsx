@@ -38,9 +38,11 @@ export default function SiteDetail() {
   const [tokens, setTokens] = useState([])
   const [tokenLoading, setTokenLoading] = useState(false)
   const [editModalVisible, setEditModalVisible] = useState(false)
+  const [createModalVisible, setCreateModalVisible] = useState(false)
   const [editingToken, setEditingToken] = useState(null)
   const [groups, setGroups] = useState([])
   const [form] = Form.useForm()
+  const [createForm] = Form.useForm()
   
   const [redeemModalVisible, setRedeemModalVisible] = useState(false)
   const [redeemCodes, setRedeemCodes] = useState('')
@@ -256,7 +258,11 @@ export default function SiteDetail() {
         remain_quota: values.unlimitedQuota ? 0 : (values.remainQuota || 0),
         model_limits_enabled: values.modelLimitsEnabled || false,
         model_limits: values.modelLimits || '',
-        allow_ips: values.allowIps || ''
+        allow_ips: values.allowIps || '',
+        // 添加VOAPI需要的额外字段
+        key: editingToken.key,
+        uid: editingToken.uid || 0,
+        used_quota: editingToken.used_quota || 0
       }
       
       const res = await fetch(`/api/sites/${id}/tokens`, {
@@ -281,6 +287,95 @@ export default function SiteDetail() {
     } catch (e) {
       message.error(e.message || '修改令牌失败')
     }
+  }
+  
+  // 创建令牌（通过后端代理）
+  const createToken = async (values) => {
+    try {
+      // 处理过期时间
+      let expiredTime = -1
+      if (values.neverExpire) {
+        expiredTime = -1
+      } else if (values.expiredTime) {
+        expiredTime = Math.floor(values.expiredTime.valueOf() / 1000)
+      }
+      
+      // 将特殊标识转换回空字符串
+      const groupValue = values.group === '__user_group__' ? '' : values.group
+      
+      const payload = {
+        name: values.name,
+        group: groupValue,
+        expiredTime: expiredTime,
+        unlimitedQuota: values.unlimitedQuota,
+        remainQuota: values.unlimitedQuota ? 0 : (values.remainQuota || 0),
+        modelLimitsEnabled: values.modelLimitsEnabled || false,
+        modelLimits: values.modelLimits || '',
+        allowIps: values.allowIps || ''
+      }
+      
+      // VOAPI需要groups参数
+      if (siteInfo?.apiType === 'voapi') {
+        if (groupValue && groupValue !== '') {
+          payload.groups = [parseInt(groupValue)]
+        } else {
+          payload.groups = [1]
+        }
+      }
+      
+      const res = await fetch(`/api/sites/${id}/tokens`, {
+        method: 'POST',
+        headers: authHeaders(true),
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || '创建令牌失败')
+      }
+      const data = await res.json()
+      if (data.success) {
+        message.success('创建成功')
+        setCreateModalVisible(false)
+        createForm.resetFields()
+        loadTokens()
+      } else {
+        throw new Error(data.message || '创建令牌失败')
+      }
+    } catch (e) {
+      message.error(e.message || '创建令牌失败')
+    }
+  }
+  
+  // 打开创建弹窗
+  const openCreateModal = async () => {
+    let currentGroups = groups
+    if (currentGroups.length === 0) {
+      currentGroups = await loadGroups()
+    }
+    
+    // 确保用户分组选项存在
+    if (!currentGroups.some(g => g.value === '__user_group__')) {
+      const displayGroups = [
+        { value: '__user_group__', label: '用户分组' },
+        ...currentGroups
+      ]
+      setGroups(displayGroups)
+    }
+    
+    // 设置默认值
+    createForm.setFieldsValue({
+      name: '',
+      group: '__user_group__',
+      neverExpire: true,
+      expiredTime: null,
+      unlimitedQuota: true,
+      remainQuota: 50000000,
+      modelLimitsEnabled: false,
+      modelLimits: '',
+      allowIps: ''
+    })
+    
+    setCreateModalVisible(true)
   }
   
   // 打开编辑弹窗
@@ -1079,6 +1174,21 @@ export default function SiteDetail() {
         width={1200}
         style={{ top: 20 }}
       >
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            onClick={openCreateModal}
+            size="large"
+            style={{
+              background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
+              border: 'none',
+              fontWeight: 600
+            }}
+          >
+            创建令牌
+          </Button>
+        </div>
         <Table
           dataSource={tokens}
           loading={tokenLoading}
@@ -1199,6 +1309,132 @@ export default function SiteDetail() {
             }
           ]}
         />
+      </Modal>
+
+      {/* 创建令牌弹窗 */}
+      <Modal
+        title={<Typography.Title level={4} style={{ margin: 0 }}>创建令牌</Typography.Title>}
+        open={createModalVisible}
+        onCancel={() => {
+          setCreateModalVisible(false)
+          createForm.resetFields()
+        }}
+        onOk={() => createForm.submit()}
+        width={600}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          onFinish={createToken}
+          style={{ marginTop: 24 }}
+        >
+          <Form.Item
+            label="名称"
+            name="name"
+            rules={[{ required: true, message: '请输入令牌名称' }]}
+          >
+            <Input placeholder="请输入令牌名称" />
+          </Form.Item>
+
+          <Form.Item
+            label="分组"
+            name="group"
+            rules={[{ required: true, message: '请选择分组' }]}
+          >
+            <Select 
+              placeholder="请选择分组"
+              showSearch
+              optionFilterProp="label"
+              options={groups}
+            />
+          </Form.Item>
+
+          <Form.Item label="过期时间">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Form.Item name="neverExpire" valuePropName="checked" noStyle>
+                <Switch checkedChildren="永不过期" unCheckedChildren="设置过期时间" />
+              </Form.Item>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) => prevValues.neverExpire !== currentValues.neverExpire}
+              >
+                {({ getFieldValue }) =>
+                  !getFieldValue('neverExpire') && (
+                    <Form.Item name="expiredTime">
+                      <DatePicker
+                        showTime
+                        format="YYYY-MM-DD HH:mm:ss"
+                        placeholder="选择过期时间"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                  )
+                }
+              </Form.Item>
+            </Space>
+          </Form.Item>
+
+          <Form.Item label="额度">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Form.Item name="unlimitedQuota" valuePropName="checked" noStyle>
+                <Switch checkedChildren="无限额" unCheckedChildren="设置额度" />
+              </Form.Item>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) => prevValues.unlimitedQuota !== currentValues.unlimitedQuota}
+              >
+                {({ getFieldValue }) =>
+                  !getFieldValue('unlimitedQuota') && (
+                    <Form.Item name="remainQuota" label="额度（原始值）">
+                      <InputNumber
+                        placeholder="请输入额度"
+                        style={{ width: '100%' }}
+                        min={0}
+                      />
+                    </Form.Item>
+                  )
+                }
+              </Form.Item>
+            </Space>
+          </Form.Item>
+
+          <Form.Item
+            label="IP白名单"
+            name="allowIps"
+            extra="一行一个IP地址，不填则不限制"
+          >
+            <Input.TextArea
+              placeholder="例如：&#10;192.168.1.1&#10;10.0.0.1&#10;172.16.0.0/12"
+              rows={4}
+            />
+          </Form.Item>
+
+          <Form.Item name="modelLimitsEnabled" valuePropName="checked" label="启用模型限制">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.modelLimitsEnabled !== currentValues.modelLimitsEnabled}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('modelLimitsEnabled') && (
+                <Form.Item
+                  label="模型限制"
+                  name="modelLimits"
+                  extra="多个模型请用逗号分隔"
+                >
+                  <Input.TextArea
+                    placeholder="例如: gpt-4, gpt-3.5-turbo"
+                    rows={3}
+                  />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+        </Form>
       </Modal>
 
       {/* 令牌编辑弹窗 */}

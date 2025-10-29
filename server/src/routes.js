@@ -570,28 +570,71 @@ async function routes(fastify) {
         return { error: '站点不存在' };
       }
       
+      const baseUrl = site.baseUrl.replace(/\/$/, '');
+      let url, headers;
+      
+      if (site.apiType === 'voapi') {
+        // VOAPI使用JWT令牌和/api/keys端点
+        const voapiToken = site.billingAuthValue ? decrypt(site.billingAuthValue) : null;
+        if (!voapiToken) {
+          reply.code(400);
+          return { error: 'VOAPI站点未配置JWT令牌' };
+        }
+        
+        url = `${baseUrl}/api/keys`;
+        headers = {
+          'Authorization': voapiToken,
+          'Content-Type': 'application/json'
+        };
+        
+        const res = await fetch(url, { headers });
+        const data = await res.json();
+        
+        if (!res.ok || data.code !== 0) {
+          throw new Error(data.message || '获取令牌列表失败');
+        }
+        
+        // 转换VOAPI数据格式为统一格式
+        const records = data.data?.records || [];
+        const convertedData = records.map(record => ({
+          id: record.id,
+          name: record.name,
+          key: record.token,
+          group: record.groups && record.groups.length > 0 ? String(record.groups[0]) : '',
+          expired_time: record.expireTime === 4102329600000 ? -1 : Math.floor(record.expireTime / 1000),
+          unlimited_quota: record.boundlessAmount,
+          remain_quota: record.boundlessAmount ? 0 : Math.floor(parseFloat(record.amount) * 500000),
+          used_quota: Math.floor(parseFloat(record.used) * 500000),
+          status: record.enable ? 1 : 0,
+          created_time: Math.floor(record.created / 1000),
+          accessed_time: Math.floor(record.updated / 1000),
+          uid: record.uid
+        }));
+        
+        return {
+          success: true,
+          data: convertedData
+        };
+      } else {
+        // newapi, veloera, donehub 使用原有逻辑
       const token = site.apiKeyEnc ? decrypt(site.apiKeyEnc) : null;
       if (!token) {
         reply.code(400);
         return { error: '站点未配置API令牌' };
       }
       
-      const baseUrl = site.baseUrl.replace(/\/$/, '');
-      // 不传递分页参数，直接获取所有令牌
-      const url = `${baseUrl}/api/token/`;
-      
-      const headers = {
+        url = `${baseUrl}/api/token/`;
+        headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
+        
       if (site.userId) {
-        // 不同站点类型使用不同的用户ID请求头
         if (site.apiType === 'newapi') {
           headers['New-Api-User'] = site.userId;
         } else if (site.apiType === 'veloera') {
           headers['Veloera-User'] = site.userId;
         }
-        // 其他类型不需要用户ID请求头
       }
       
       const res = await fetch(url, { headers });
@@ -602,6 +645,7 @@ async function routes(fastify) {
       }
       
       return data;
+      }
     } catch (e) {
       fastify.log.error({ error: e.message, siteId: id }, 'Error fetching tokens');
       reply.code(500);
@@ -668,8 +712,8 @@ async function routes(fastify) {
     }
   });
   
-  // 代理更新站点令牌
-  fastify.put('/api/sites/:id/tokens', {
+  // 代理创建站点令牌
+  fastify.post('/api/sites/:id/tokens', {
     schema: {
       params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
       body: { type: 'object' }
@@ -693,31 +737,201 @@ async function routes(fastify) {
       }
       
       const baseUrl = site.baseUrl.replace(/\/$/, '');
-      const url = `${baseUrl}/api/token/`;
+      let url, headers, payload;
       
-      const headers = {
+      if (site.apiType === 'voapi') {
+        // VOAPI 使用系统访问令牌（billingAuthValue）
+        const voapiToken = site.billingAuthValue ? decrypt(site.billingAuthValue) : null;
+        if (!voapiToken) {
+          reply.code(400);
+          return { error: 'VOAPI站点未配置系统访问令牌（JWT令牌）' };
+        }
+        
+        url = `${baseUrl}/api/keys`;
+        headers = {
+          'Authorization': voapiToken,
+          'Content-Type': 'application/json'
+        };
+        
+        // VOAPI的负载格式
+        payload = {
+          name: tokenData.name || 'key-' + Date.now(),
+          amount: tokenData.remainQuota ? String(tokenData.remainQuota / 500000) : '0',
+          boundlessAmount: tokenData.unlimitedQuota !== undefined ? tokenData.unlimitedQuota : false,
+          enable: true,
+          expireTime: tokenData.expiredTime === -1 ? 4102329600000 : (tokenData.expiredTime * 1000),
+          genCount: 1,
+          groups: tokenData.groups || [1]
+        };
+      } else if (site.apiType === 'donehub') {
+        // DoneHub的负载格式
+        url = `${baseUrl}/api/token/`;
+        headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
+        
+        payload = {
+          name: tokenData.name || '',
+          remain_quota: tokenData.unlimitedQuota ? 0 : (tokenData.remainQuota || 0),
+          unlimited_quota: tokenData.unlimitedQuota !== undefined ? tokenData.unlimitedQuota : false,
+          group: tokenData.group || '',
+          expired_time: tokenData.expiredTime !== undefined ? tokenData.expiredTime : -1,
+          is_edit: false,
+          setting: {
+            heartbeat: {
+              enabled: false,
+              timeout_seconds: 30
+            }
+          }
+        };
+      } else {
+        // newapi 和 veloera的负载格式
+        url = `${baseUrl}/api/token/`;
+        headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+        
       if (site.userId) {
-        // 不同站点类型使用不同的用户ID请求头
         if (site.apiType === 'newapi') {
           headers['New-Api-User'] = site.userId;
         } else if (site.apiType === 'veloera') {
           headers['Veloera-User'] = site.userId;
         }
-        // 其他类型不需要用户ID请求头
+        }
+        
+        payload = {
+          name: tokenData.name || '',
+          remain_quota: tokenData.unlimitedQuota ? 0 : (tokenData.remainQuota || 0),
+          unlimited_quota: tokenData.unlimitedQuota !== undefined ? tokenData.unlimitedQuota : false,
+          group: tokenData.group || '',
+          expired_time: tokenData.expiredTime !== undefined ? tokenData.expiredTime : -1,
+          model_limits_enabled: tokenData.modelLimitsEnabled || false,
+          model_limits: tokenData.modelLimits || '',
+          allow_ips: tokenData.allowIps || ''
+        };
+      }
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.message || '创建令牌失败');
+      }
+      
+      // VOAPI返回格式转换
+      if (site.apiType === 'voapi') {
+        if (data.code === 0) {
+          return { success: true, message: '创建成功' };
+        } else {
+          throw new Error(data.message || '创建令牌失败');
+        }
+      }
+      
+      return data;
+    } catch (e) {
+      fastify.log.error({ error: e.message, siteId: id }, 'Error creating token');
+      reply.code(500);
+      return { error: e.message || '创建令牌失败' };
+    }
+  });
+  
+  // 代理更新站点令牌
+  fastify.put('/api/sites/:id/tokens', {
+    schema: {
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      body: { type: 'object' }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const tokenData = request.body;
+    const { decrypt } = require('./crypto');
+    
+    try {
+      const site = await prisma.site.findUnique({ where: { id } });
+      if (!site) {
+        reply.code(404);
+        return { error: '站点不存在' };
+      }
+      
+      const baseUrl = site.baseUrl.replace(/\/$/, '');
+      let url, headers, payload;
+      
+      if (site.apiType === 'voapi') {
+        // VOAPI使用JWT令牌和/api/keys/:id端点
+        const voapiToken = site.billingAuthValue ? decrypt(site.billingAuthValue) : null;
+        if (!voapiToken) {
+          reply.code(400);
+          return { error: 'VOAPI站点未配置JWT令牌' };
+        }
+        
+        url = `${baseUrl}/api/keys/${tokenData.id}`;
+        headers = {
+          'Authorization': voapiToken,
+          'Content-Type': 'application/json'
+        };
+        
+        // 转换为VOAPI格式
+        const groupValue = tokenData.group || '';
+        payload = {
+          name: tokenData.name,
+          amount: tokenData.unlimited_quota ? "0" : String(tokenData.remain_quota / 500000),
+          boundlessAmount: tokenData.unlimited_quota,
+          enable: true,
+          expireTime: tokenData.expired_time === -1 ? 4102329600000 : (tokenData.expired_time * 1000),
+          groups: groupValue ? [parseInt(groupValue)] : [1],
+          token: tokenData.key,
+          uid: tokenData.uid || 0,
+          used: tokenData.used_quota ? String(tokenData.used_quota / 500000) : "0"
+        };
+      } else {
+        // newapi, veloera, donehub 使用原有逻辑
+        const token = site.apiKeyEnc ? decrypt(site.apiKeyEnc) : null;
+        if (!token) {
+          reply.code(400);
+          return { error: '站点未配置API令牌' };
+        }
+        
+        url = `${baseUrl}/api/token/`;
+        headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+        
+        if (site.userId) {
+          if (site.apiType === 'newapi') {
+            headers['New-Api-User'] = site.userId;
+          } else if (site.apiType === 'veloera') {
+            headers['Veloera-User'] = site.userId;
+          }
+        }
+        
+        payload = tokenData;
       }
       
       const res = await fetch(url, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(tokenData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       
       if (!res.ok) {
         throw new Error(data.message || '更新令牌失败');
+      }
+      
+      // VOAPI返回格式转换
+      if (site.apiType === 'voapi') {
+        if (data.code === 0) {
+          return { success: true, message: '更新成功' };
+        } else {
+          throw new Error(data.message || '更新令牌失败');
+        }
       }
       
       return data;
@@ -744,27 +958,43 @@ async function routes(fastify) {
         return { error: '站点不存在' };
       }
       
+      const baseUrl = site.baseUrl.replace(/\/$/, '');
+      let url, headers;
+      
+      if (site.apiType === 'voapi') {
+        // VOAPI使用JWT令牌和/api/keys/:id端点
+        const voapiToken = site.billingAuthValue ? decrypt(site.billingAuthValue) : null;
+        if (!voapiToken) {
+          reply.code(400);
+          return { error: 'VOAPI站点未配置JWT令牌' };
+        }
+        
+        url = `${baseUrl}/api/keys/${tokenId}`;
+        headers = {
+          'Authorization': voapiToken,
+          'Content-Type': 'application/json'
+        };
+      } else {
+        // newapi, veloera, donehub 使用原有逻辑
       const token = site.apiKeyEnc ? decrypt(site.apiKeyEnc) : null;
       if (!token) {
         reply.code(400);
         return { error: '站点未配置API令牌' };
       }
       
-      const baseUrl = site.baseUrl.replace(/\/$/, '');
-      const url = `${baseUrl}/api/token/${tokenId}`;
-      
-      const headers = {
+        url = `${baseUrl}/api/token/${tokenId}`;
+        headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       };
+        
       if (site.userId) {
-        // 不同站点类型使用不同的用户ID请求头
         if (site.apiType === 'newapi') {
           headers['New-Api-User'] = site.userId;
         } else if (site.apiType === 'veloera') {
           headers['Veloera-User'] = site.userId;
         }
-        // 其他类型不需要用户ID请求头
+        }
       }
       
       const res = await fetch(url, {
@@ -775,6 +1005,15 @@ async function routes(fastify) {
       
       if (!res.ok) {
         throw new Error(data.message || '删除令牌失败');
+      }
+      
+      // VOAPI返回格式转换
+      if (site.apiType === 'voapi') {
+        if (data.code === 0) {
+          return { success: true, message: '删除成功' };
+        } else {
+          throw new Error(data.message || '删除令牌失败');
+        }
       }
       
       return data;

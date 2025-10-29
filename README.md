@@ -141,6 +141,55 @@ docker-compose up -d
 
 ---
 
+### 💻 源码部署
+
+**环境要求**
+
+- Node.js 18+
+- Git
+
+**部署步骤**
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/jwy87/SimpleHub.git
+cd SimpleHub
+
+# 2. 配置环境变量（可选）
+cat > server/.env <<EOF
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=admin123456
+PORT=3000
+EOF
+
+# 3. 安装后端依赖
+cd server
+npm install
+npx prisma generate
+cd ..
+
+# 4. 构建并启动
+# 构建前端
+cd web
+npm install
+npm run build
+cd ..
+
+# 将前端文件复制到server目录
+mkdir -p server/web
+cp -r web/dist server/web/
+
+# 启动服务
+cd server
+npm start
+```
+
+**访问应用**
+
+打开浏览器访问 `http://localhost:3000` 或 `http://your-server-ip:3000`
+
+---
+
 ## 📖 使用指南
 
 ### 添加站点
@@ -380,45 +429,24 @@ docker run -d \
 ## 🛠 本地开发
 
 <details>
-<summary>点击展开本地开发指南</summary>
-
-### 环境要求
-
-- Node.js 18+
-- npm 或 yarn
-
-### 安装依赖
+<summary>点击展开开发模式指南</summary>
 
 ```bash
-# 后端
+# 1. 安装依赖
 cd server && npm install
+cd ../web && npm install
 
-# 前端
-cd web && npm install
-```
+# 2. 初始化数据库
+cd ../server && npx prisma generate
 
-### 初始化数据库
+# 3. 启动后端（端口 3000）
+npm run dev
 
-```bash
-cd server
-npx prisma generate
-npx prisma db push
-```
-
-### 启动开发服务器
-
-```bash
-# 后端（端口 3000）
-cd server && npm run dev
-
-# 前端（端口 5173）- 新终端
+# 4. 新开终端，启动前端（端口 5173）
 cd web && npm run dev
 ```
 
-### 访问应用
-
-- 前端开发服务器：`http://localhost:5173`
-- 后端 API：`http://localhost:3000`
+访问 `http://localhost:5173` 即可开始开发
 
 </details>
 
