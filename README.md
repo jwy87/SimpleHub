@@ -4,7 +4,7 @@
 
 <p>统一管理多个 API 站点，支持自动签到、余额监控和智能通知</p>
 
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/K93Z2G?referralCode=2554906587)
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/K93Z2G?referralCode=jae233)
 
 ![GitHub Repo stars](https://img.shields.io/github/stars/jwy87/SimpleHub)
 ![GitHub forks](https://img.shields.io/github/forks/jwy87/SimpleHub)
@@ -61,7 +61,7 @@
   
   <br>
   
-  [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/K93Z2G?referralCode=2554906587)
+  [![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/K93Z2G?referralCode=jae233)
 </div>
 
 ---
