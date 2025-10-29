@@ -155,12 +155,9 @@ docker-compose up -d
 git clone https://github.com/jwy87/SimpleHub.git
 cd SimpleHub
 
-# 2. 配置环境变量（可选）
-cat > server/.env <<EOF
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=admin123456
-PORT=3000
-EOF
+# 2. 配置环境变量（复制配置模板到 server 目录）
+cp .env.example server/.env
+# 然后编辑 server/.env 文件，根据需要修改管理员账号等配置
 
 # 3. 安装后端依赖
 cd server
@@ -187,6 +184,19 @@ npm start
 **访问应用**
 
 打开浏览器访问 `http://localhost:3000` 或 `http://your-server-ip:3000`
+
+**环境变量说明**
+
+项目根目录下的 `env.example` 文件包含了所有可配置的环境变量：
+
+| 环境变量 | 说明 | 是否必需 | 默认值 |
+|---------|------|---------|--------|
+| `DATABASE_URL` | 数据库文件路径 | **必需** | `file:./data/db.sqlite` |
+| `ADMIN_EMAIL` | 管理员邮箱 | 可选 | `admin@example.com` |
+| `ADMIN_PASSWORD` | 管理员密码 | 可选 | `admin123456` |
+| `PORT` | 服务端口 | 可选 | `3000` |
+
+> 💡 **提示**：建议在生产环境中修改管理员账号和密码
 
 ---
 
