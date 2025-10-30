@@ -364,9 +364,14 @@ async function fetchUserInfoDonehub(baseUrl, apiKey, fastify) {
     const quotaInDollars = (userData.quota || 0) / conversionRatio;
     const usedQuotaInDollars = (userData.used_quota || 0) / conversionRatio;
     
+    console.log(`[DONEHUB-QUOTA-CONVERSION] 转换后quota: $${quotaInDollars.toFixed(6)}, 转换后used_quota: $${usedQuotaInDollars.toFixed(6)}`);
+    const totalQuotaInDollars = quotaInDollars + usedQuotaInDollars; // 总额度 = 当前余额 + 已使用
+    
+    console.log(`[DONEHUB-QUOTA-CONVERSION] 当前余额: $${quotaInDollars.toFixed(6)}, 已使用: $${usedQuotaInDollars.toFixed(6)}, 总额度: $${totalQuotaInDollars.toFixed(6)}`);
+    
     return {
-      quota: quotaInDollars,
-      usedQuota: usedQuotaInDollars,
+      quota: totalQuotaInDollars, // 返回总额度
+      usedQuota: usedQuotaInDollars, // 返回已使用额度
       status: userData.status
     };
   } catch (error) {
